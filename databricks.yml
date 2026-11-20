@@ -1,0 +1,122 @@
+bundle:
+  name: chevron-fpa
+
+variables:
+  catalog: {default: chevron_fpa}
+  schema: {default: finance}
+  volume: {default: raw}
+  company: {default: "Meridian Energy, Inc."}
+  app_name: {default: chevron-fpa-planner}
+  warehouse_name: {default: chevron-fpa-warehouse}
+  lakebase_project: {default: chevron-fpa}
+  lakebase_branch: {default: production}
+  pg_database: {default: planning_db}
+  lakebase_catalog: {default: chevron_fpa_lakebase}
+  genie_space_title: {default: "Meridian Energy FP&A Assistant"}
+  endpoint_name: {default: chevron-fpa-forecast}
+  model_name: {default: chevron_fpa.finance.energy_forecast}
+  model_version: {default: "1"}
+  pipeline_name: {default: chevron_fpa_gl_pipeline}
+  job_name: {default: chevron_fpa_build}
+  remove_after: {default: "2027-04-30"}
+  remove_after_uc: {default: "20270430"}
+
+resources:
+  sql_warehouses:
+    chevron_fpa_wh:
+      name: ${var.warehouse_name}
+      cluster_size: "2X-Small"
+      auto_stop_mins: 10
+      enable_serverless_compute: true
+      channel: {name: "CHANNEL_NAME_CURRENT"}
+      tags:
+        custom_tags:
+          - {key: RemoveAfter, value: "${var.remove_after}"}
+
+  pipelines:
+    chevron_fpa_pipe:
+      name: ${var.pipeline_name}
+      serverless: true
+      channel: CURRENT
+      catalog: ${var.catalog}
+      target: ${var.schema}
+      root_path: ./pipeline
+      configuration:
+        raw_path: /Volumes/${var.catalog}/${var.schema}/${var.volume}
+      libraries:
+        - file: {path: ./pipeline/chevron_fpa_gl_pipeline.sql}
+      tags: {RemoveAfter: "${var.remove_after}"}
+
+  jobs:
+    chevron_fpa_build:
+      name: ${var.job_name}
+      tags: {RemoveAfter: "${var.remove_after}"}
+      tasks:
+        - task_key: t01
+          notebook_task:
+            notebook_path: ./notebooks/01_setup.py
+            base_parameters: &p
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+              volume: ${var.volume}
+              company: ${var.company}
+              app_name: ${var.app_name}
+              warehouse_name: ${var.warehouse_name}
+              lakebase_project: ${var.lakebase_project}
+              lakebase_branch: ${var.lakebase_branch}
+              pg_database: ${var.pg_database}
+              lakebase_catalog: ${var.lakebase_catalog}
+              genie_space_title: ${var.genie_space_title}
+              endpoint_name: ${var.endpoint_name}
+              model_name: ${var.model_name}
+              remove_after: ${var.remove_after}
+              remove_after_uc: ${var.remove_after_uc}
+              pipeline_name: ${var.pipeline_name}
+        - task_key: t02
+          notebook_task: {notebook_path: ./notebooks/02_pipeline.py, base_parameters: *p}
+          depends_on: [{task_key: t01}]
+        - task_key: t03
+          notebook_task: {notebook_path: ./notebooks/03_governance.py, base_parameters: *p}
+          depends_on: [{task_key: t02}]
+        - task_key: t04
+          notebook_task: {notebook_path: ./notebooks/04_lakebase.py, base_parameters: *p}
+          depends_on: [{task_key: t03}]
+        - task_key: t05
+          notebook_task: {notebook_path: ./notebooks/05_forecasting.py, base_parameters: *p}
+          depends_on: [{task_key: t04}]
+        - task_key: t06
+          notebook_task: {notebook_path: ./notebooks/06_scenarios.py, base_parameters: *p}
+          depends_on: [{task_key: t05}]
+        - task_key: t07
+          notebook_task: {notebook_path: ./notebooks/07_genie.py, base_parameters: *p}
+          depends_on: [{task_key: t06}]
+        - task_key: t08
+          notebook_task: {notebook_path: ./notebooks/08_app.py, base_parameters: *p}
+          depends_on: [{task_key: t07}]
+
+  apps:
+    chevron_fpa_app:
+      name: ${var.app_name}
+      source_code_path: ./app
+      resources:
+        - name: sql-warehouse
+          sql_warehouse:
+            id: ${resources.sql_warehouses.chevron_fpa_wh.id}
+            permission: CAN_USE
+
+targets:
+  stage_a: {default: true}
+  stage_b:
+    # Synced tables (04) and the Genie space (07) are created in code; stage_b adds the endpoint.
+    resources:
+      model_serving_endpoints:
+        chevron_fpa_endpoint:
+          name: ${var.endpoint_name}
+          config:
+            served_entities:
+              - entity_name: ${var.model_name}
+                entity_version: ${var.model_version}
+                workload_size: Small
+                scale_to_zero_enabled: true
+          tags:
+            - {key: RemoveAfter, value: "${var.remove_after}"}

@@ -1,0 +1,29 @@
+entrypoint: app.py
+command:
+  - gunicorn
+  - app:server
+  - --workers
+  - "4"
+  - --bind
+  - 0.0.0.0:$DATABRICKS_APP_PORT
+  - --timeout
+  - "120"
+env:
+  - name: WAREHOUSE_NAME
+    value: chevron-fpa-warehouse
+  - name: CATALOG
+    value: chevron_fpa
+  - name: SCHEMA
+    value: finance
+  - name: LAKEBASE_PROJECT
+    value: chevron-fpa
+  - name: LAKEBASE_BRANCH
+    value: production
+  - name: PG_DATABASE
+    value: planning_db
+  - name: LAKEBASE_CATALOG
+    value: chevron_fpa_lakebase
+  - name: ENDPOINT_NAME
+    value: chevron-fpa-forecast
+  - name: GENIE_SPACE_TITLE
+    value: Meridian Energy FP&A Assistant

@@ -1,0 +1,9 @@
+dash
+dash-bootstrap-components
+plotly
+pandas
+numpy
+psycopg[binary]>=3.1.0
+databricks-sdk>=0.158.0
+databricks-sql-connector
+gunicorn
