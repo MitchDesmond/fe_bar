@@ -26,8 +26,7 @@ SELECT account_id, CAST(SUM(amount) AS DOUBLE) AS amount FROM (
   GROUP BY period, account_id, cost_center_id
 ) GROUP BY account_id
 """).toPandas()
-# Build BS from 01_setup logic (simplified: use stored BS from actuals roll-forward)
-# For demo: compute closing BS from the P&L roll-forward in 01_setup
+# Closing BS from the ACT roll-forward in 01_setup
 act_bs = {r.account_id: r.amount for r in act_bs_raw.itertuples()}
 if not act_bs:
     act_bs = {"1000":250e6,"1100":0,"1200":3e9,"1300":-1.35e9,"1400":2e8,"1500":5e7,
@@ -117,7 +116,7 @@ for sid, spec in SCENARIOS.items():
     cur.execute("COMMIT;")
     print(f"  {sid}: {len(fcst)} cells upserted")
 conn.commit(); conn.close()
-# ACT P&L from fact_actuals so statements show history + plans (brickplanner: view over v_combined)
+# ACT P&L from fact_actuals so statements show history + plans
 act_pnl = pnl_summary(fact); act_pnl["scenario_id"] = "ACT"
 for acc, col in (("6600", "dda"), ("6700", "aro")):
     act_pnl[col] = act_pnl.period.map(fact[fact.account_id == acc].groupby("period").amount.sum()).fillna(0.0)

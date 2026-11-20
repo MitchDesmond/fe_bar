@@ -45,7 +45,7 @@ SQL = {
     "What is the FY2025 revenue?": f"SELECT SUM(revenue)/1e6 AS revenue_musd FROM {fc()}.consolidated_pnl WHERE period BETWEEN '2025-01' AND '2025-12' AND scenario_id = 'ACT'",
     "Compare BUD vs FCST revenue for FY2027": f"SELECT scenario_id, SUM(revenue)/1e6 AS revenue_musd FROM {fc()}.consolidated_pnl WHERE period BETWEEN '2027-01' AND '2027-12' AND scenario_id IN ('BUD','FCST') GROUP BY scenario_id",
 }
-# Genie serialized space v2 (same shape as brickplanner-energy)
+# Genie serialized space v2
 space_json = json.dumps({"version": 2,
     "config": {"sample_questions": sorted([{"id": hid(), "question": [q]} for q in QUESTIONS], key=lambda x: x["id"])},
     "data_sources": {"tables": [{"identifier": t} for t in tables]},
